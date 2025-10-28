@@ -1,4 +1,5 @@
 using System.Text;
+using RestApiClient.Models;
 
 namespace RestApiClient.Services;
 
@@ -7,11 +8,13 @@ public class ApiClient
     private readonly HttpClient _httpClient;
     private readonly bool _verbose;
     private readonly string _baseAddress;
+    private readonly AuthenticationSettings _authSettings;
 
-    public ApiClient(string baseAddress, int timeoutSeconds, bool verbose = false)
+    public ApiClient(string baseAddress, int timeoutSeconds, AuthenticationSettings authSettings, bool verbose = false)
     {
         _verbose = verbose;
         _baseAddress = baseAddress.TrimEnd('/');
+        _authSettings = authSettings;
         _httpClient = new HttpClient
         {
             BaseAddress = new Uri(_baseAddress),
@@ -22,15 +25,19 @@ public class ApiClient
     public async Task<string> SendRequestAsync(
         string method,
         string endpoint,
-        Dictionary<string, string> parameters,
-        string[] headers,
-        string? body = null)
+        Dictionary<string, string>? parameters = null,
+        string? body = null,
+        string? authToken = null,
+        bool requiresAuth = true)
     {
         // Replace parameters in endpoint (e.g., "files/{fileId}" -> "files/123")
         var actualEndpoint = endpoint;
-        foreach (var param in parameters)
+        if (parameters != null)
         {
-            actualEndpoint = actualEndpoint.Replace($"{{{param.Key}}}", param.Value);
+            foreach (var param in parameters)
+            {
+                actualEndpoint = actualEndpoint.Replace($"{{{param.Key}}}", param.Value);
+            }
         }
 
         var fullUrl = $"{_baseAddress}/{actualEndpoint.TrimStart('/')}";
@@ -42,20 +49,15 @@ public class ApiClient
 
         var request = new HttpRequestMessage(new HttpMethod(method.ToUpper()), actualEndpoint);
 
-        // Add custom headers
-        foreach (var header in headers)
+        // Add authentication token if required
+        if (requiresAuth && !string.IsNullOrEmpty(authToken))
         {
-            var parts = header.Split(':', 2);
-            if (parts.Length == 2)
-            {
-                var key = parts[0].Trim();
-                var value = parts[1].Trim();
-                request.Headers.Add(key, value);
+            var authHeader = $"{_authSettings.TokenPrefix} {authToken}";
+            request.Headers.Add(_authSettings.TokenHeaderName, authHeader);
 
-                if (_verbose)
-                {
-                    Console.WriteLine($"[VERBOSE] Header: {key} = {value}");
-                }
+            if (_verbose)
+            {
+                Console.WriteLine($"[VERBOSE] Added authentication header");
             }
         }
 
@@ -78,27 +80,17 @@ public class ApiClient
             var response = await _httpClient.SendAsync(request);
             var responseBody = await response.Content.ReadAsStringAsync();
 
-            var result = $"Status: {(int)response.StatusCode} {response.StatusCode}\n";
-            
-            if (_verbose)
-            {
-                result += $"Full URL: {fullUrl}\n";
-                result += $"Headers:\n";
-                foreach (var header in response.Headers)
-                {
-                    result += $"  {header.Key}: {string.Join(", ", header.Value)}\n";
-                }
-                result += "\n";
-            }
-
-            result += $"Body:\n{responseBody}";
-
             if (!response.IsSuccessStatusCode)
             {
-                throw new HttpRequestException($"Request failed with status {response.StatusCode}");
+                throw new HttpRequestException($"Request failed with status {response.StatusCode}: {responseBody}");
             }
 
-            return result;
+            if (_verbose)
+            {
+                Console.WriteLine($"[VERBOSE] Response status: {(int)response.StatusCode} {response.StatusCode}");
+            }
+
+            return responseBody;
         }
         catch (TaskCanceledException ex)
         {

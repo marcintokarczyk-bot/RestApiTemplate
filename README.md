@@ -1,192 +1,257 @@
-# REST API Client CLI
+# REST API Client CLI - Template
 
-CLI narzędzie w C# do wysyłania zapytań HTTP/REST API z konfigurowalnym base address i endpointami.
+CLI narzędzie w C# do pracy z REST API z automatyczną autentykacją i predefiniowanymi komendami.
 
 ## Funkcje
 
-- ✅ Base Address dla wszystkich żądań
-- ✅ Predefiniowane endpointy z parametrami (np. "files/{fileId}")
-- ✅ Wysyłanie zapytań GET, POST, PUT, DELETE, PATCH
-- ✅ Dodawanie niestandardowych nagłówków
-- ✅ Obsługa body dla żądań POST/PUT/PATCH
-- ✅ Verbose output z pełnym URL
-- ✅ Zapisywanie odpowiedzi do pliku
-- ✅ Konfigurowalny timeout
-- ✅ Lista dostępnych endpointów
+- ✅ Konfiguracja przez plik `appsettings.json`
+- ✅ Automatyczna autentykacja (logowanie i token)
+- ✅ Predefiniowane komendy z własnymi opcjami
+- ✅ Template do łatwej rozbudowy o nowe komendy
+- ✅ Verbose output
+- ✅ Base address i endpointy skonfigurowane w kodzie
 
 ## Instalacja
 
 ```bash
 # Zainstaluj .NET SDK 8.0 jeśli nie masz
-# Następnie uruchom:
 dotnet restore
 dotnet build
 ```
 
+## Konfiguracja
+
+Edytuj plik `appsettings.json`:
+
+```json
+{
+  "ApiSettings": {
+    "BaseAddress": "https://api.example.com",
+    "Login": "your-username",
+    "Password": "your-password",
+    "TimeoutSeconds": 30
+  },
+  "Authentication": {
+    "LoginEndpoint": "auth/login",
+    "TokenHeaderName": "Authorization",
+    "TokenPrefix": "Bearer"
+  }
+}
+```
+
+### Parametry konfiguracji:
+
+- **ApiSettings.BaseAddress** - Bazowy adres API
+- **ApiSettings.Login** - Nazwa użytkownika do logowania
+- **ApiSettings.Password** - Hasło do logowania
+- **ApiSettings.TimeoutSeconds** - Timeout w sekundach
+- **Authentication.LoginEndpoint** - Endpoint do logowania (względny do BaseAddress)
+- **Authentication.TokenHeaderName** - Nazwa nagłówka z tokenem (domyślnie: "Authorization")
+- **Authentication.TokenPrefix** - Prefix tokenu (domyślnie: "Bearer")
+
 ## Użycie
 
-### Lista dostępnych endpointów
+### Podstawowe komendy
 
 ```bash
-dotnet run -- --list
+# Lista dostępnych komend
+dotnet run -- --help
+
+# Pomoc dla konkretnej komendy
+dotnet run -- download-file --help
 ```
 
-### Podstawowe zapytanie GET
+### Przykład: download-file
 
 ```bash
-dotnet run -- -b https://api.example.com files-list
+# Podstawowe użycie
+dotnet run -- download-file test123
+
+# Z opcją --full
+dotnet run -- download-file test123 --full
+
+# Zapis do pliku
+dotnet run -- download-file test123 --output "./myfile.txt"
+
+# Verbose output
+dotnet run -- download-file test123 --full --verbose
+
+# Wszystkie opcje razem
+dotnet run -- download-file test123 --full --output "./myfile.txt" --verbose
 ```
 
-### Endpoint z parametrem
+## Jak działa autentykacja
 
-```bash
-dotnet run -- -b https://api.example.com files-get -p fileId=123
+1. Przy pierwszym wywołaniu komendy, aplikacja automatycznie loguje się do API
+2. Otrzymuje token autoryzacyjny z odpowiedzi logowania
+3. Token jest cachowany i używany we wszystkich kolejnych requestach
+4. Format odpowiedzi logowania można dostosować w `Services/AuthenticationService.cs`
+
+### Format odpowiedzi API logowania
+
+Aplikacja obsługuje następujące formaty odpowiedzi:
+
+```json
+// Format 1
+{ "token": "your-token-here" }
+
+// Format 2
+{ "accessToken": "your-token-here" }
+
+// Format 3
+{ "data": { "token": "your-token-here" } }
 ```
 
-### Wiele parametrów
+Jeśli Twój API używa innego formatu, edytuj metodę `GetAuthenticationTokenAsync()` w `Services/AuthenticationService.cs`.
 
-```bash
-dotnet run -- -b https://api.example.com files-download -p "fileId=123" -p "version=2"
-```
+## Rozbudowa o nowe komendy
 
-### Zapytanie POST z body
+### 1. Utwórz klasę komendy
 
-```bash
-dotnet run -- -b https://api.example.com -m POST -d '{"name":"test"}' users-create
-```
-
-### Dodawanie nagłówków
-
-```bash
-dotnet run -- -b https://api.example.com -H "Authorization:Bearer token123" files-get -p fileId=123
-```
-
-### Verbose output (pokazuje pełny URL)
-
-```bash
-dotnet run -- -b https://api.example.com -v files-get -p fileId=123
-```
-
-### Zapisywanie odpowiedzi do pliku
-
-```bash
-dotnet run -- -b https://api.example.com files-get -p fileId=123 -o response.json
-```
-
-### Konfiguracja timeout
-
-```bash
-dotnet run -- -b https://api.example.com files-get -t 60 -p fileId=123
-```
-
-## Dostępne Endpointy
-
-Możesz zobaczyć wszystkie dostępne endpointy używając:
-
-```bash
-dotnet run -- --list
-```
-
-Przykładowe endpointy:
-- `files-get` → `files/{fileId}`
-- `files-full` → `files/{fileId}/full`
-- `files-list` → `files`
-- `users-get` → `users/{userId}`
-- `users-list` → `users`
-- `files-download` → `files/{fileId}/download/{version}` (wymaga fileId i version)
-
-## Opcje
-
-| Opcja | Skrót | Opis | Wymagany |
-|-------|-------|------|----------|
-| `--base` | `-b` | Base address API | **TAK** |
-| `--method` | `-m` | Metoda HTTP (GET, POST, PUT, DELETE, PATCH) | Nie (domyślnie: GET) |
-| `--param` | `-p` | Parametry endpointu (format: key=value) | Nie |
-| `--header` | `-H` | Nagłówki (format: Key:Value) | Nie |
-| `--body` | `--data`, `-d` | Body dla POST/PUT/PATCH | Nie |
-| `--timeout` | `-t` | Timeout w sekundach | Nie (domyślnie: 30) |
-| `--output` | `-o` | Ścieżka pliku wyjściowego | Nie |
-| `--verbose` | `-v` | Verbose output | Nie |
-| `--list` | `-l` | Lista dostępnych endpointów | Nie |
-
-## Przykłady
-
-### Pobranie listy plików
-
-```bash
-dotnet run -- -b https://api.example.com files-list
-```
-
-### Pobranie konkretnego pliku
-
-```bash
-dotnet run -- -b https://api.example.com files-get -p fileId=12345
-```
-
-### Pobranie pełnej informacji o pliku
-
-```bash
-dotnet run -- -b https://api.example.com files-full -p fileId=12345
-```
-
-### Utworzenie nowego użytkownika
-
-```bash
-dotnet run -- -b https://api.example.com -m POST \
-  -H "Content-Type:application/json" \
-  -H "Authorization:Bearer YOUR_TOKEN" \
-  -d '{"name":"John Doe","email":"john@example.com"}' \
-  users-create
-```
-
-### Pobranie pliku z określoną wersją
-
-```bash
-dotnet run -- -b https://api.example.com \
-  files-download \
-  -p fileId=123 \
-  -p version=2
-```
-
-### Aktualizacja dokumentu (PUT)
-
-```bash
-dotnet run -- -b https://api.example.com -m PUT \
-  -d '{"title":"Updated Title"}' \
-  docs-update \
-  -p docId=456
-```
-
-### Usuwanie zasobu (DELETE)
-
-```bash
-dotnet run -- -b https://api.example.com -m DELETE \
-  files-get \
-  -p fileId=123
-```
-
-## Dodawanie własnych endpointów
-
-Aby dodać własne endpointy, edytuj plik `Services/ApiEndpoints.cs` i dodaj nowe wpisy do słownika:
+Stwórz nowy plik w folderze `Commands/`, np. `UploadFileCommand.cs`:
 
 ```csharp
-public static Dictionary<string, string> GetEndpoints()
+using RestApiClient.Services;
+
+namespace RestApiClient.Commands;
+
+public class UploadFileCommand : BaseCommand
 {
-    return new Dictionary<string, string>
+    private readonly string _filePath;
+
+    public UploadFileCommand(
+        ApiClient apiClient,
+        AuthenticationService authService,
+        bool verbose,
+        string filePath)
+        : base(apiClient, authService, verbose)
     {
-        // ... istniejące endpointy ...
-        
-        // Twój nowy endpoint
-        ["custom-endpoint"] = "custom/path/{param1}/{param2}",
-    };
+        _filePath = filePath;
+    }
+
+    public override async Task<int> ExecuteAsync()
+    {
+        try
+        {
+            // Authenticate
+            var token = await AuthService.GetAuthenticationTokenAsync();
+
+            // Read file
+            var fileContent = await File.ReadAllTextAsync(_filePath);
+
+            // Send request
+            var response = await ApiClient.SendRequestAsync(
+                method: "POST",
+                endpoint: "files/upload",
+                body: fileContent,
+                authToken: token
+            );
+
+            Console.WriteLine(response);
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            return 1;
+        }
+    }
 }
+```
+
+### 2. Zarejestruj komendę w Program.cs
+
+Dodaj do `Program.cs`:
+
+```csharp
+// upload-file command
+var uploadFileCommand = new Command("upload-file", "Upload a file to the API");
+
+var filePathArgument = new Argument<string>(
+    "file-path",
+    "Path to file to upload"
+);
+uploadFileCommand.AddArgument(filePathArgument);
+
+uploadFileCommand.SetHandler(async (InvocationContext ctx) =>
+{
+    var verbose = ctx.ParseResult.GetValueForOption(verboseOption);
+    var filePath = ctx.ParseResult.GetValueForArgument(filePathArgument);
+
+    // Update API client verbosity
+    apiClient = new ApiClient(
+        baseAddress: apiSettings.BaseAddress,
+        timeoutSeconds: apiSettings.TimeoutSeconds,
+        authSettings: authSettings,
+        verbose: verbose
+    );
+    
+    authService = new AuthenticationService(configService, apiClient);
+
+    var command = new UploadFileCommand(
+        apiClient,
+        authService,
+        verbose,
+        filePath
+    );
+
+    var exitCode = await command.ExecuteAsync();
+    Environment.Exit(exitCode);
+});
+
+rootCommand.Add(uploadFileCommand);
+```
+
+### 3. Gotowe!
+
+Teraz możesz używać nowej komendy:
+
+```bash
+dotnet run -- upload-file ./myfile.txt
+```
+
+## Struktura projektu
+
+```
+RestApiTest/
+├── appsettings.json              # Konfiguracja (base address, login, hasło)
+├── Program.cs                    # Główny program z rejestracją komend
+├── Models/
+│   └── ApiSettings.cs           # Modele konfiguracji
+├── Services/
+│   ├── ApiClient.cs             # Klient HTTP z obsługą tokenu
+│   ├── AuthenticationService.cs # Serwis autentykacji
+│   └── ConfigurationService.cs  # Serwis konfiguracji
+└── Commands/
+    ├── BaseCommand.cs           # Bazowa klasa dla komend
+    └── DownloadFileCommand.cs   # Przykładowa komenda
+```
+
+## Dostosowanie endpointów
+
+Endpointy są hardkodowane w klasach komend. Aby zmienić endpoint, edytuj odpowiednią klasę komendy:
+
+```csharp
+// W DownloadFileCommand.cs
+string endpoint = _full 
+    ? $"files/{{fileId}}/full"    // files/123/full
+    : $"files/{{fileId}}";         // files/123
+```
+
+Parametry w endpointach są przekazywane przez słownik:
+
+```csharp
+var parameters = new Dictionary<string, string>
+{
+    ["fileId"] = _fileId
+};
 ```
 
 ## Budowanie i uruchamianie
 
 ```bash
 # Development
-dotnet run -- -b https://api.example.com [endpoint] [opcje]
+dotnet run -- download-file test123
 
 # Build
 dotnet build
@@ -195,14 +260,15 @@ dotnet build
 dotnet publish -c Release
 
 # Uruchomienie skompilowanej wersji
-./bin/Release/net8.0/RestApiClient -b https://api.example.com [endpoint] [opcje]
+./bin/Release/net8.0/RestApiClient download-file test123
 ```
 
-## Kod źródłowy
+## Uwagi
 
-- `Program.cs` - Główny program z parsowaniem argumentów CLI
-- `Services/ApiClient.cs` - Serwis do obsługi zapytań HTTP
-- `Services/ApiEndpoints.cs` - Definicje endpointów
+- Token autoryzacyjny jest cachowany na czas życia aplikacji
+- Base address jest konfigurowany tylko przez `appsettings.json`
+- Wszystkie komendy automatycznie logują się przed wykonaniem requestu
+- Aby dodać więcej opcji do komendy, użyj `Option<T>` w System.CommandLine
 
 ## Licencja
 

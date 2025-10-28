@@ -1,0 +1,135 @@
+// Template dla nowej komendy
+// Skopiuj ten plik i zmień nazwę klasy oraz implementację
+
+using RestApiClient.Services;
+
+namespace RestApiClient.Commands;
+
+public class YourNewCommand : BaseCommand
+{
+    // Dodaj pola dla parametrów komendy
+    private readonly string _requiredParam;
+    private readonly bool _optionalFlag;
+    private readonly string? _optionalParam;
+
+    public YourNewCommand(
+        ApiClient apiClient,
+        AuthenticationService authService,
+        bool verbose,
+        string requiredParam,
+        bool optionalFlag,
+        string? optionalParam)
+        : base(apiClient, authService, verbose)
+    {
+        _requiredParam = requiredParam;
+        _optionalFlag = optionalFlag;
+        _optionalParam = optionalParam;
+    }
+
+    public override async Task<int> ExecuteAsync()
+    {
+        try
+        {
+            if (Verbose)
+            {
+                Console.WriteLine("[VERBOSE] Starting YourNewCommand...");
+            }
+
+            // 1. Authenticate (automatycznie cachuje token)
+            if (Verbose)
+            {
+                Console.WriteLine("[VERBOSE] Authenticating...");
+            }
+            
+            var token = await AuthService.GetAuthenticationTokenAsync();
+            
+            if (Verbose)
+            {
+                Console.WriteLine("[VERBOSE] Authentication successful");
+            }
+
+            // 2. Przygotuj endpoint (z parametrami jeśli potrzebne)
+            string endpoint = _optionalFlag 
+                ? "endpoint/full/{{paramId}}" 
+                : "endpoint/{{paramId}}";
+
+            var parameters = new Dictionary<string, string>
+            {
+                ["paramId"] = _requiredParam
+            };
+
+            // 3. Wyślij request
+            if (Verbose)
+            {
+                Console.WriteLine($"[VERBOSE] Sending request to {endpoint}");
+            }
+
+            // Dla GET request:
+            var response = await ApiClient.SendRequestAsync(
+                method: "GET",
+                endpoint: endpoint,
+                parameters: parameters,
+                authToken: token
+            );
+
+            // Dla POST request z body:
+            // var body = JsonSerializer.Serialize(new { key = "value" });
+            // var response = await ApiClient.SendRequestAsync(
+            //     method: "POST",
+            //     endpoint: endpoint,
+            //     body: body,
+            //     authToken: token
+            // );
+
+            // 4. Obsłuż odpowiedź
+            Console.WriteLine(response);
+
+            return 0;
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Error: {ex.Message}");
+            if (Verbose)
+            {
+                Console.Error.WriteLine($"Details: {ex}");
+            }
+            return 1;
+        }
+    }
+}
+
+// W Program.cs dodaj:
+//
+// var yourNewCommand = new Command("your-command", "Description of your command");
+//
+// var requiredArg = new Argument<string>("required-param", "Description");
+// yourNewCommand.AddArgument(requiredArg);
+//
+// var optionalFlag = new Option<bool>(new[] { "--flag", "-f" }, "Flag description");
+// yourNewCommand.Add(optionalFlag);
+//
+// var optionalOption = new Option<string?>(new[] { "--option", "-o" }, "Option description");
+// yourNewCommand.Add(optionalOption);
+//
+// yourNewCommand.SetHandler(async (InvocationContext ctx) =>
+// {
+//     var verbose = ctx.ParseResult.GetValueForOption(verboseOption);
+//     var required = ctx.ParseResult.GetValueForArgument(requiredArg);
+//     var flag = ctx.ParseResult.GetValueForOption(optionalFlag);
+//     var option = ctx.ParseResult.GetValueForOption(optionalOption);
+//
+//     apiClient = new ApiClient(
+//         baseAddress: apiSettings.BaseAddress,
+//         timeoutSeconds: apiSettings.TimeoutSeconds,
+//         authSettings: authSettings,
+//         verbose: verbose
+//     );
+//     
+//     authService = new AuthenticationService(configService, apiClient);
+//
+//     var command = new YourNewCommand(apiClient, authService, verbose, required, flag, option);
+//     var exitCode = await command.ExecuteAsync();
+//     Environment.Exit(exitCode);
+// });
+//
+// rootCommand.Add(yourNewCommand);
